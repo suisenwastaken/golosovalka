@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#100e0c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Голосовалка</title>
+<style>
+  :root {
+    --bg: #14110e;
+    --bg-deep: #0c0b09;
+    --ink: #f3ecdf;
+    --muted: #9c917f;
+    --line: rgba(243, 236, 223, 0.14);
+    --brass: #e4c27a;
+    --brass-dim: rgba(228, 194, 122, 0.14);
+    --seal: #e23b32;
+    --paper: #221c17;
+    --shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+    --serif: "Iowan Old Style", Palatino, "Palatino Linotype", "Times New Roman", serif;
+    --sans: "Avenir Next", "Segoe UI", sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    color: var(--ink);
+    font-family: var(--sans);
+    background:
+      radial-gradient(900px 480px at 50% -10%, rgba(228, 194, 122, 0.08), transparent 55%),
+      var(--bg-deep);
+    display: grid;
+    place-items: center;
+    -webkit-font-smoothing: antialiased;
+  }
+  button, input { font: inherit; color: inherit; }
+  button {
+    background: none;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  button:focus-visible {
+    outline: 2px solid var(--brass);
+    outline-offset: 2px;
+  }
+  #app {
+    width: min(440px, 100%);
+    height: 100dvh;
+  }
+  @media (min-width: 760px) {
+    #app {
+      height: min(900px, calc(100dvh - 40px));
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+  }
+
+  .app {
+    height: 100%;
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    padding:
+      max(12px, env(safe-area-inset-top))
+      18px
+      max(14px, env(safe-area-inset-bottom));
+    position: relative;
+    user-select: none;
+    overflow: hidden;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 48px;
+  }
+  .brand {
+    margin: 0;
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--brass);
+  }
+  .round {
+    margin: 2px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .close {
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 8px 12px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .close.armed {
+    color: white;
+    background: var(--seal);
+    border-color: transparent;
+  }
+
+  .tracker {
+    display: flex;
+    gap: 14px;
+    list-style: none;
+    margin: 6px 0 0;
+    padding: 0;
+    color: var(--muted);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .tracker .on { color: var(--brass); }
+
+  h1 {
+    margin: 14px 0 0;
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 34px;
+    letter-spacing: -0.03em;
+  }
+  .lede {
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.35;
+  }
+  .toast {
+    min-height: 22px;
+    margin: 8px 0 0;
+    color: var(--brass);
+    font-size: 14px;
+  }
+
+  .stage {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .stage.rise { animation: rise 0.38s ease; }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .stage.rise { animation: none; }
+  }
+
+  .grow {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .scroll {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding-top: 12px;
+  }
+
+  .dial {
+    width: 168px;
+    height: 168px;
+    margin: 8px auto 0;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    box-shadow: inset 0 0 0 10px rgba(228, 194, 122, 0.05);
+    display: grid;
+    place-items: center;
+    position: relative;
+  }
+  .dial::after {
+    content: "";
+    position: absolute;
+    inset: 12px;
+    border-radius: 50%;
+    border: 1px dashed rgba(228, 194, 122, 0.35);
+  }
+  .dial b, .draft b {
+    position: relative;
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 72px;
+    letter-spacing: -0.04em;
+    font-variant-numeric: tabular-nums;
+    color: var(--brass);
+  }
+  .dial b.ghost, .draft b.ghost { color: rgba(243, 236, 223, 0.28); }
+  .draft {
+    min-height: 72px;
+    display: grid;
+    place-items: center;
+  }
+  .draft b { font-size: 56px; }
+  .shake { animation: shake 0.35s linear; }
+  @keyframes shake {
+    20% { transform: translateX(-4px); }
+    40% { transform: translateX(4px); }
+    60% { transform: translateX(-3px); }
+    80% { transform: translateX(3px); }
+  }
+
+  .modes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 16px;
+  }
+  .modes button, .dock button, .pad button, .tile, .chip, .texty {
+    border-radius: 16px;
+  }
+  .modes button {
+    border: 1px solid var(--line);
+    background: var(--paper);
+    padding: 12px 10px;
+    color: var(--muted);
+  }
+  .modes button.on {
+    color: var(--bg-deep);
+    background: var(--brass);
+    border-color: transparent;
+  }
+  .modes button small {
+    display: block;
+    margin-top: 2px;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    opacity: 0.75;
+  }
+
+  .pad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .pad button, .tile {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    min-height: 58px;
+    font-family: var(--serif);
+    font-size: 28px;
+  }
+  .pad button.go {
+    color: var(--bg-deep);
+    background: var(--brass);
+    border-color: transparent;
+    font-family: var(--sans);
+    font-size: 15px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  button:active { transform: scale(0.98); }
+
+  .dock { margin-top: 10px; }
+  .dock button, .stack button {
+    width: 100%;
+    min-height: 54px;
+    border-radius: 16px;
+    background: var(--brass);
+    color: var(--bg-deep);
+    font-size: 16px;
+  }
+  .dock button.quiet, .stack button.quiet {
+    background: transparent;
+    color: var(--ink);
+    border: 1px solid var(--line);
+  }
+  .dock button:disabled {
+    opacity: 0.35;
+  }
+  .stack { display: grid; gap: 8px; }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    max-height: 96px;
+    overflow: auto;
+    margin-top: 12px;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 4px 4px 12px;
+    border-radius: 999px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+  }
+  .chip b {
+    font-family: var(--serif);
+    font-size: 20px;
+    font-weight: 500;
+  }
+  .chip button {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    color: var(--muted);
+    font-size: 18px;
+  }
+
+  .meter {
+    height: 4px;
+    margin-top: 14px;
+    border-radius: 99px;
+    background: rgba(243, 236, 223, 0.08);
+    overflow: hidden;
+  }
+  .meter span {
+    display: block;
+    height: 100%;
+    background: var(--brass);
+  }
+  .countline {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+  .countline strong { color: var(--ink); font-weight: 600; }
+
+  .tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+    gap: 10px;
+  }
+  .tile {
+    min-height: 112px;
+    border-radius: 18px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    font-size: 44px;
+  }
+  .tile em {
+    font-style: normal;
+    font-family: var(--sans);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--brass);
+  }
+  .row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 8px 0 12px;
+  }
+  .texty {
+    color: var(--muted);
+    font-size: 14px;
+    padding: 8px 0;
+  }
+
+  .curtain, .result-hero {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+  .mark {
+    width: 92px;
+    height: 92px;
+    border-radius: 50%;
+    border: 1px solid rgba(228, 194, 122, 0.5);
+    display: grid;
+    place-items: center;
+    margin-bottom: 18px;
+  }
+  .mark::before {
+    content: "";
+    width: 28px;
+    height: 14px;
+    border-left: 3px solid var(--brass);
+    border-bottom: 3px solid var(--brass);
+    transform: rotate(-45deg) translate(2px, -2px);
+  }
+  .curtain h1, .result-hero h1 { margin-top: 0; }
+  .seal {
+    width: 148px;
+    height: 148px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: radial-gradient(circle at 40% 35%, #ff6a5a, var(--seal) 58%, #9d1d18);
+    color: white;
+    box-shadow: 0 16px 40px rgba(226, 59, 50, 0.28);
+    margin-bottom: 16px;
+  }
+  .seal.tie, .seal.none {
+    background: var(--paper);
+    color: var(--brass);
+    box-shadow: none;
+    border: 1px solid var(--line);
+  }
+  .seal b {
+    font-family: var(--serif);
+    font-size: 52px;
+    font-weight: 500;
+    letter-spacing: -0.04em;
+    line-height: 0.9;
+  }
+  .seal.stamp { animation: stamp 0.45s cubic-bezier(.2, 1.4, .4, 1); }
+  @keyframes stamp {
+    from { transform: scale(1.35); opacity: 0; }
+    to { transform: none; opacity: 1; }
+  }
+  .kicker {
+    margin: 0 0 8px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-size: 12px;
+    color: var(--brass);
+  }
+
+  .bars { width: 100%; text-align: left; margin: 8px 0 14px; }
+  .bar { margin-top: 10px; }
+  .bar .meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+    margin-bottom: 4px;
+  }
+  .bar .meta b { font-family: var(--serif); font-size: 20px; font-weight: 500; }
+  .bar .meta span { color: var(--muted); }
+  .track {
+    height: 8px;
+    border-radius: 99px;
+    background: rgba(243, 236, 223, 0.08);
+    overflow: hidden;
+  }
+  .track i {
+    display: block;
+    height: 100%;
+    background: var(--brass);
+    border-radius: inherit;
+  }
+  .bar.hot .track i { background: var(--seal); }
+  .tag {
+    color: var(--muted);
+    font-size: 12px;
+    margin-left: 6px;
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const SAVE = "golosovalka-v1"
+const app = document.getElementById("app")
+
+function fresh(round, secret) {
+  return {
+    round,
+    stage: "count",
+    secret: !!secret,
+    countDraft: "",
+    playerCount: 0,
+    numberDraft: "",
+    numbers: [],
+    votes: [],
+    voteDraft: "",
+    customOpen: false,
+    returnStage: ""
+  }
+}
+
+const state = {
+  ...fresh(1, true),
+  notice: "",
+  shake: false,
+  closeArmed: false
+}
+
+let painted = ""
+let armTimer = 0
+let noticeTimer = 0
+
+function esc(value) {
+  return String(value).replace(/[&<>"']/g, (ch) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  }[ch]))
+}
+
+function load() {
+  try {
+    const raw = localStorage.getItem(SAVE)
+    if (!raw) return
+    const data = JSON.parse(raw)
+    const base = fresh(1, true)
+    for (const key of Object.keys(base)) {
+      if (key in data) base[key] = data[key]
+    }
+    if (!["count", "numbers", "vote", "curtain", "result"].includes(base.stage)) base.stage = "count"
+    base.numbers = Array.isArray(base.numbers) ? base.numbers.filter(n => Number.isInteger(n)) : []
+    base.votes = Array.isArray(base.votes) ? base.votes.filter(n => Number.isInteger(n)) : []
+    base.playerCount = Number.isInteger(base.playerCount) ? base.playerCount : 0
+    base.round = Number.isInteger(base.round) && base.round > 0 ? base.round : 1
+    Object.assign(state, base)
+  } catch (err) {
+    localStorage.removeItem(SAVE)
+  }
+}
+
+function persist() {
+  const data = fresh(state.round, state.secret)
+  for (const key of Object.keys(data)) data[key] = state[key]
+  localStorage.setItem(SAVE, JSON.stringify(data))
+}
+
+function note(message) {
+  state.notice = message
+  state.shake = true
+  render()
+  clearTimeout(noticeTimer)
+  noticeTimer = setTimeout(() => {
+    state.notice = ""
+    state.shake = false
+    render()
+  }, 1700)
+}
+
+function render() {
+  const rise = state.stage !== painted
+  painted = state.stage
+  const body = {
+    count: viewCount,
+    numbers: viewNumbers,
+    vote: viewVote,
+    curtain: viewCurtain,
+    result: viewResult
+  }[state.stage]()
+  app.innerHTML = shell(body, rise)
+  persist()
+}
+
+function shell(body, rise) {
+  const close = state.stage === "result" ? "" : `
+    <button type="button" class="close${state.closeArmed ? " armed" : ""}" data-act="close">
+      ${state.closeArmed ? "Ещё раз" : "Закрыть круг"}
+    </button>`
+  return `
+    <div class="app">
+      <header>
+        <div>
+          <p class="brand">Голос</p>
+          <p class="round">Круг ${state.round}</p>
+        </div>
+        ${close}
+      </header>
+      <div class="stage${rise ? " rise" : ""}">${body}</div>
+    </div>`
+}
+
+function tracker(current) {
+  const items = [["count", "Игроки"], ["numbers", "Номера"], ["vote", "Голоса"]]
+  const cur = current === "curtain" ? "vote" : current
+  return `<ol class="tracker">${items.map(([id, label]) =>
+    `<li class="${id === cur ? "on" : ""}">${label}</li>`).join("")}</ol>`
+}
+
+function pad(okLabel) {
+  const keys = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+  return `
+    <div class="pad">
+      ${keys.map(n => `<button type="button" data-act="digit" data-val="${n}">${n}</button>`).join("")}
+      <button type="button" data-act="back" aria-label="Стереть">←</button>
+      <button type="button" data-act="digit" data-val="0">0</button>
+      <button type="button" class="go" data-act="ok">${okLabel}</button>
+    </div>`
+}
+
+function modes() {
+  return `
+    <div class="modes">
+      <button type="button" data-act="mode" data-val="secret" class="${state.secret ? "on" : ""}">
+        Тайно<small>телефон по кругу</small>
+      </button>
+      <button type="button" data-act="mode" data-val="open" class="${state.secret ? "" : "on"}">
+        Открыто<small>счёт виден сразу</small>
+      </button>
+    </div>`
+}
+
+function viewCount() {
+  const shown = state.countDraft || "—"
+  const ghost = state.countDraft ? "" : " ghost"
+  return `
+    ${tracker("count")}
+    <h1>Сколько игроков</h1>
+    <p class="lede">Столько раз можно будет проголосовать. Потом — их номера.</p>
+    <p class="toast">${esc(state.notice) || "&nbsp;"}</p>
+    <div class="grow">
+      <div class="dial${state.shake ? " shake" : ""}"><b class="${ghost.trim()}">${esc(shown)}</b></div>
+      ${modes()}
+    </div>
+    ${pad("Дальше")}
+  `
+}
+
+function viewNumbers() {
+  const shown = state.numberDraft || "—"
+  const ghost = state.numberDraft ? "" : " ghost"
+  const left = Math.max(state.playerCount - state.numbers.length, 0)
+  const ready = state.numbers.length > 0
+  const full = state.numbers.length >= state.playerCount && state.playerCount > 0
+  const chips = state.numbers.map((n, i) => `
+    <span class="chip"><b>${n}</b>
+      <button type="button" data-act="del" data-val="${i}" aria-label="Убрать ${n}">×</button>
+    </span>`).join("")
+  const label = full ? "К голосованию" : "Закончить набор"
+  return `
+    ${tracker("numbers")}
+    <h1>Номера</h1>
+    <p class="lede">${state.numbers.length} из ${state.playerCount}${left ? ` · осталось ${left}` : ""}</p>
+    <p class="toast">${esc(state.notice) || "&nbsp;"}</p>
+    <div class="chips">${chips}</div>
+    <div class="grow"></div>
+    <div class="draft${state.shake ? " shake" : ""}"><b class="${ghost.trim()}">${esc(shown)}</b></div>
+    ${pad("+")}
+    <div class="dock">
+      <button type="button" data-act="govote" ${ready ? "" : "disabled"} class="${full ? "" : "quiet"}">${label}</button>
+    </div>
+  `
+}
+
+function meter() {
+  const total = state.playerCount || 1
+  const width = Math.min(100, Math.round(state.votes.length / total * 100))
+  let lead = ""
+  if (!state.secret && state.votes.length) {
+    const leaders = leadersOf()
+    lead = leaders.length === 1
+      ? `Сейчас лидирует <strong>${leaders[0]}</strong>`
+      : "Пока ничья"
+  }
+  return `
+    <div class="meter" aria-hidden="true"><span style="width:${width}%"></span></div>
+    <p class="countline">Голос <strong>${state.votes.length}</strong> из ${state.playerCount}${lead ? " · " + lead : ""}</p>
+  `
+}
+
+function viewVote() {
+  const tiles = state.numbers.map(n => {
+    const votes = state.votes.filter(v => v === n).length
+    const badge = !state.secret && votes ? `<em>${votes}</em>` : ""
+    return `<button type="button" class="tile" data-act="cast" data-val="${n}">${n}${badge}</button>`
+  }).join("")
+  const outsiders = voteExtras()
+  const extra = !state.secret && outsiders.length
+    ? `<p class="countline">Другие: ${outsiders.map(([n, c]) => `${n} × ${c}`).join(", ")}</p>`
+    : ""
+  const custom = state.customOpen ? `
+    <div class="grow"></div>
+    <div class="draft${state.shake ? " shake" : ""}"><b class="${state.voteDraft ? "" : "ghost"}">${esc(state.voteDraft || "—")}</b></div>
+    ${pad("Голос")}
+    <button type="button" class="texty" data-act="custom">К номерам игроков</button>
+  ` : `
+    <div class="scroll"><div class="tiles">${tiles}</div>${extra}</div>
+    ${!state.secret && state.votes.length ? `<button type="button" class="texty" data-act="undo">Отменить последний</button>` : ""}
+    <div class="dock">
+      <button type="button" class="quiet" data-act="custom">Другой номер</button>
+    </div>
+  `
+  return `
+    ${tracker("vote")}
+    <h1>Голосование</h1>
+    <p class="lede">${state.secret ? "Один голос, потом телефон дальше. Можно за любой номер." : "Жмите номер. Можно закрыть круг, не дожидаясь всех."}</p>
+    ${meter()}
+    <p class="toast">${esc(state.notice) || "&nbsp;"}</p>
+    ${custom}
+  `
+}
+
+function viewCurtain() {
+  const last = state.votes.length >= state.playerCount
+  return `
+    ${tracker("curtain")}
+    <div class="curtain">
+      <div class="mark"></div>
+      <h1>${last ? "Все голоса есть" : "Голос принят"}</h1>
+      <p class="lede">${state.votes.length} из ${state.playerCount}. Выбор скрыт.</p>
+    </div>
+    <div class="stack">
+      <button type="button" data-act="${last ? "results" : "next"}">${last ? "Показать итог" : "Следующий игрок"}</button>
+      <button type="button" class="quiet" data-act="undo">Отменить этот голос</button>
+    </div>
+  `
+}
+
+function resultRows() {
+  const counts = new Map()
+  for (const n of state.numbers) counts.set(n, 0)
+  for (const v of state.votes) counts.set(v, (counts.get(v) || 0) + 1)
+  return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0])
+}
+
+function leadersOf() {
+  const rows = resultRows().filter(([, count]) => count > 0)
+  if (!rows.length) return []
+  const top = rows[0][1]
+  return rows.filter(([, count]) => count === top).map(([n]) => n)
+}
+
+function voteExtras() {
+  return resultRows().filter(([n, count]) => count > 0 && !state.numbers.includes(n))
+}
+
+function viewResult() {
+  const leaders = leadersOf()
+  const rows = resultRows()
+  const top = rows.find(([, count]) => count > 0)?.[1] || 0
+  const none = state.votes.length === 0
+  const tie = leaders.length > 1
+  const kicked = !none && !tie ? leaders[0] : null
+  const left = kicked == null ? [] : state.numbers.filter(n => n !== kicked)
+  const survivor = kicked != null && state.playerCount <= 2 && left.length === 1 ? left[0] : null
+  const sealClass = none ? "none" : tie ? "tie" : ""
+  const sealText = none ? "—" : tie ? leaders.join("·") : String(kicked)
+  const title = none ? "Без голосов" : tie ? "Ничья" : "Вылетает"
+  const lede = none
+    ? "Круг закрыт досрочно. Никто не выбывает."
+    : tie
+      ? "Одинаково. Никто не выбывает."
+      : survivor != null
+        ? `За столом остаётся ${survivor}.`
+        : "Большинство за этот номер."
+  const canResume = state.returnStage === "count"
+    || state.returnStage === "numbers"
+    || (state.returnStage === "vote" && state.votes.length < state.playerCount)
+  const canRevote = state.playerCount > 0 && state.numbers.length > 0 && state.votes.length > 0
+  const canNext = kicked != null && state.playerCount > 2
+  const bars = none ? "" : `
+    <div class="bars">
+      ${rows.map(([n, count]) => {
+        const width = top ? Math.round(count / top * 100) : 0
+        const hot = leaders.includes(n)
+        const tag = state.numbers.includes(n) ? "" : `<span class="tag">не в списке</span>`
+        return `<div class="bar${hot ? " hot" : ""}">
+          <div class="meta"><b>${n}</b><span>${count}${tag}</span></div>
+          <div class="track"><i style="width:${width}%"></i></div>
+        </div>`
+      }).join("")}
+    </div>`
+  return `
+    <p class="kicker">Итог · круг ${state.round}${state.votes.length ? ` · ${state.votes.length} из ${state.playerCount}` : ""}</p>
+    <div class="result-hero">
+      <div class="seal ${sealClass}${state._stamp ? " stamp" : ""}"><b style="font-size:${sealText.length > 4 ? 28 : 52}px">${esc(sealText)}</b></div>
+      <h1>${title}</h1>
+      <p class="lede">${lede}</p>
+    </div>
+    <div class="scroll">${bars}</div>
+    <div class="stack">
+      ${canResume ? `<button type="button" data-act="resume">Продолжить круг</button>` : ""}
+      ${canRevote ? `<button type="button" class="${canResume ? "quiet" : ""}" data-act="revote">Переголосовать</button>` : ""}
+      ${canNext ? `<button type="button" class="quiet" data-act="nextround">Следующий круг без ${kicked}</button>` : ""}
+      <button type="button" class="quiet" data-act="reset">С начала</button>
+    </div>
+  `
+}
+
+function pushDigit(digit) {
+  if (state.stage === "count") {
+    if (state.countDraft.length >= 2) return
+    state.countDraft = `${state.countDraft}${digit}`.replace(/^0+(\d)/, "$1")
+    render()
+    return
+  }
+  if (state.stage === "numbers") {
+    if (state.numberDraft.length >= 3) return
+    state.numberDraft = `${state.numberDraft}${digit}`.replace(/^0+(\d)/, "$1")
+    render()
+    return
+  }
+  if (state.stage === "vote") {
+    state.customOpen = true
+    if (state.voteDraft.length >= 3) return
+    state.voteDraft = `${state.voteDraft}${digit}`.replace(/^0+(\d)/, "$1")
+    render()
+  }
+}
+
+function backspace() {
+  if (state.stage === "count") state.countDraft = state.countDraft.slice(0, -1)
+  else if (state.stage === "numbers") state.numberDraft = state.numberDraft.slice(0, -1)
+  else if (state.stage === "vote") state.voteDraft = state.voteDraft.slice(0, -1)
+  else return
+  render()
+}
+
+function confirm() {
+  if (state.stage === "count") commitCount()
+  else if (state.stage === "numbers") tryAddNumber()
+  else if (state.stage === "vote" && state.voteDraft !== "") castVote(Number(state.voteDraft))
+  else if (state.stage === "curtain") {
+    if (state.votes.length >= state.playerCount) showResult(false)
+    else {
+      state.stage = "vote"
+      render()
+    }
+  }
+}
+
+function commitCount() {
+  const count = Number(state.countDraft)
+  if (!state.countDraft || !Number.isInteger(count) || count < 1) {
+    note("Минимум один игрок")
+    return
+  }
+  if (count > 99) {
+    note("Максимум 99")
+    return
+  }
+  state.playerCount = count
+  state.numbers = []
+  state.numberDraft = ""
+  state.votes = []
+  state.returnStage = ""
+  state.stage = "numbers"
+  render()
+}
+
+function tryAddNumber() {
+  if (state.numberDraft === "") {
+    note("Введите номер")
+    return false
+  }
+  const n = Number(state.numberDraft)
+  if (!Number.isInteger(n) || n < 0 || n > 999) {
+    note("Номер от 0 до 999")
+    return false
+  }
+  if (state.numbers.includes(n)) {
+    note("Такой номер уже есть")
+    return false
+  }
+  if (state.numbers.length >= state.playerCount) {
+    note("Номеров уже достаточно")
+    return false
+  }
+  state.numbers.push(n)
+  state.numberDraft = ""
+  render()
+  return true
+}
+
+function goVote() {
+  if (state.numberDraft !== "") {
+    const before = state.numbers.length
+    const ok = tryAddNumber()
+    if (!ok || state.numbers.length === before) return
+  }
+  if (!state.numbers.length) {
+    note("Нужен хотя бы один номер")
+    return
+  }
+  state.votes = []
+  state.voteDraft = ""
+  state.customOpen = false
+  state.returnStage = ""
+  state.stage = "vote"
+  render()
+}
+
+function castVote(n) {
+  if (!Number.isInteger(n) || n < 0 || n > 999) {
+    note("Номер от 0 до 999")
+    return
+  }
+  if (state.votes.length >= state.playerCount) return
+  state.votes.push(n)
+  state.voteDraft = ""
+  state.customOpen = false
+  if (state.secret) state.stage = "curtain"
+  else if (state.votes.length >= state.playerCount) {
+    showResult(false)
+    return
+  }
+  render()
+}
+
+function showResult(fromClose) {
+  if (!fromClose) state.returnStage = ""
+  state.stage = "result"
+  state.customOpen = false
+  state.closeArmed = false
+  state._stamp = true
+  render()
+  state._stamp = false
+}
+
+function closeRound() {
+  state.returnStage = state.stage === "curtain" ? "vote" : state.stage
+  showResult(true)
+}
+
+function resume() {
+  const back = state.returnStage || "count"
+  state.returnStage = ""
+  state.stage = back
+  render()
+}
+
+function revote() {
+  state.votes = []
+  state.voteDraft = ""
+  state.customOpen = false
+  state.returnStage = ""
+  state.stage = "vote"
+  render()
+}
+
+function nextRound() {
+  const leaders = leadersOf()
+  if (leaders.length !== 1) return
+  const kicked = leaders[0]
+  state.numbers = state.numbers.filter(n => n !== kicked)
+  state.playerCount = Math.max(1, state.playerCount - 1)
+  state.votes = []
+  state.voteDraft = ""
+  state.numberDraft = ""
+  state.customOpen = false
+  state.returnStage = ""
+  state.round += 1
+  state.stage = state.numbers.length ? "numbers" : "count"
+  render()
+}
+
+function resetAll() {
+  const secret = state.secret
+  Object.assign(state, fresh(1, secret), { notice: "", shake: false, closeArmed: false })
+  painted = ""
+  render()
+}
+
+app.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-act]")
+  if (!button || button.disabled) return
+  const act = button.dataset.act
+  const val = button.dataset.val
+  if (act === "digit") return pushDigit(val)
+  if (act === "back") return backspace()
+  if (act === "ok") return confirm()
+  if (act === "govote") return goVote()
+  if (act === "del") {
+    state.numbers.splice(Number(val), 1)
+    render()
+    return
+  }
+  if (act === "cast") return castVote(Number(val))
+  if (act === "custom") {
+    state.customOpen = !state.customOpen
+    state.voteDraft = ""
+    render()
+    return
+  }
+  if (act === "undo") {
+    state.votes.pop()
+    state.stage = "vote"
+    render()
+    return
+  }
+  if (act === "next") {
+    state.stage = "vote"
+    render()
+    return
+  }
+  if (act === "results") return showResult(false)
+  if (act === "resume") return resume()
+  if (act === "revote") return revote()
+  if (act === "nextround") return nextRound()
+  if (act === "reset") return resetAll()
+  if (act === "mode") {
+    state.secret = val === "secret"
+    render()
+    return
+  }
+  if (act === "close") {
+    if (!state.closeArmed) {
+      state.closeArmed = true
+      render()
+      clearTimeout(armTimer)
+      armTimer = setTimeout(() => {
+        if (!state.closeArmed) return
+        state.closeArmed = false
+        render()
+      }, 8000)
+      return
+    }
+    clearTimeout(armTimer)
+    state.closeArmed = false
+    closeRound()
+  }
+})
+
+document.addEventListener("keydown", (event) => {
+  if (event.key >= "0" && event.key <= "9") {
+    event.preventDefault()
+    pushDigit(event.key)
+    return
+  }
+  if (event.key === "Backspace") {
+    event.preventDefault()
+    backspace()
+    return
+  }
+  if (event.key === "Enter") {
+    event.preventDefault()
+    confirm()
+  }
+})
+
+load()
+render()
+</script>
+</body>
+</html>
